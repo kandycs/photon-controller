@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+# Copyright (c) 2015 VMware, Inc. All Rights Reserved.
+
+from eccli.format import print_request, print_result
+from eccli.format import print_response
+from eccli.optparser import default_parser
+from eccli.thrift import get_client
+from eccli.utils import createVmResource
+from eccli.utils import createDisksResource
+
+from gen.host.ttypes import ReserveRequest, ReserveResultCode
+from gen.resource.ttypes import Resource
+from gen.scheduler.ttypes import PlaceRequest
+from gen.scheduler.ttypes import PlaceResultCode
+
+parser = default_parser(usage="eccli-place [options]",
+                        add_help=True)
+parser.add_option("-v", "--vm",
+                  action="store_true", dest="vm",
+                  help="Place a vm")
+parser.add_option("-d", "--disks",
+                  action="store_true", dest="disks",
+                  help="Place disks")
+parser.add_option("-i", "--image",
+                  action="store", type="string", dest="image",
+                  help="Image for vm boot disk")
+(options, args) = parser.parse_args()
+
+# create resource
+resource = Resource()
+if options.vm and options.image:
+    resource.vm = createVmResource(options.image)
+elif options.disks:
+    resource.disks = createDisksResource()
+else:
+    parser.print_help()
+    exit(1)
+
+# place
+place_request = PlaceRequest()
+place_request.resource = resource
+print_request(place_request)
+client = get_client(options.host)
+place_response = client.place(place_request)
+print_response(place_response)
+if place_response.result != PlaceResultCode.OK:
+    exit(1)
+
+# reserve
+reserve_request = ReserveRequest()
+reserve_request.generation = 1
+reserve_request.resource = resource
+reserve_request.resource.placement_list = place_response.placementList
+print_request(reserve_request)
+reserve_response = client.reserve(reserve_request)
+print_response(reserve_response)
+
+if reserve_response.result is ReserveResultCode.OK:
+    print_result("reservation: %s" % reserve_response.reservation)

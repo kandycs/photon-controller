@@ -1,0 +1,8 @@
+{
+	"name": "network1",
+	"description": "VM Network",
+	"portGroups": [
+		"PG1",
+		"PG2"
+	]
+}

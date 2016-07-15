@@ -1,0 +1,315 @@
+# Copyright 2015 VMware, Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, without warranties or
+# conditions of any kind, EITHER EXPRESS OR IMPLIED. See the License for the
+# specific language governing permissions and limitations under the License.
+
+require "rspec/core/rake_task"
+require_relative "lib/log_backup_helpers"
+require_relative "lib/host_cleaner"
+require_relative "lib/test_helpers"
+require_relative "lib/uptime_helper"
+require_relative "lib/dcp/cloud_store/deployment_factory"
+require_relative "lib/management_plane_seeder"
+require_relative "lib/dcp/cloud_store/task_factory"
+
+namespace "esxcloud" do
+  desc 'Run authorization test for esxcloud api'
+  RSpec::Core::RakeTask.new(:authorization) do |task|
+    task.pattern = FileList['spec/api/**/*_spec.rb']
+    task.rspec_opts = "--tag authorization --format RspecJunitFormatter --out reports/rspec-api.xml --tag ~slow --profile"
+  end
+
+  desc 'Run integration test for esxcloud api'
+  RSpec::Core::RakeTask.new(:api) do |task|
+    task.pattern = FileList['spec/api/**/*_spec.rb']
+    task.rspec_opts = "--tag management --format RspecJunitFormatter --out reports/rspec-api.xml --tag ~slow --profile"
+  end
+
+  desc 'Run integration test for esxcloud gocli'
+  RSpec::Core::RakeTask.new(:gocli) do |task|
+    task.pattern = FileList['spec/api/**/*_spec.rb']
+    task.rspec_opts = "--tag management --format RspecJunitFormatter --out reports/rspec-gocli.xml --tag ~slow --profile"
+  end
+
+  desc 'Run tests for the deployment apis'
+  RSpec::Core::RakeTask.new(:deployment) do |task|
+    task.pattern = FileList['spec/api/**/*_spec.rb']
+    task.rspec_opts = "--tag new_deployment --format RspecJunitFormatter --out reports/rspec-deployment.xml --tag ~slow --profile"
+  end
+
+  desc 'Validate esxcloud system'
+  RSpec::Core::RakeTask.new(:validate) do |task|
+    task.pattern = FileList['spec/api/system_spec.rb']
+    task.rspec_opts = "--tag validate_system --format RspecJunitFormatter --out reports/rspec-clean.xml"
+  end
+
+  desc 'Run tests for life cycle'
+  RSpec::Core::RakeTask.new(:life_cycle) do |task|
+    task.pattern = FileList['spec/api/**/*_spec.rb']
+    task.rspec_opts = "--tag life_cycle --format RspecJunitFormatter --out reports/rspec-life-cycle.xml --tag ~slow --profile"
+  end
+end
+
+namespace :seed do
+  desc 'Seed host'
+  RSpec::Core::RakeTask.new(:host) do |task|
+    task.pattern = FileList['spec/api/seed/seed_host_spec.rb']
+    task.rspec_opts = "--tag seed_host --format RspecJunitFormatter --out reports/rspec-seed-host.xml --tag ~slow --profile"
+  end
+
+  desc 'Ensure default network exists'
+  task :ensure_default_network do |task|
+    EsxCloud::Config.init
+    EsxCloud::Config.client = ApiClientHelper.management
+    port_group = EsxCloud::TestHelpers.get_vm_port_group
+
+    networks = EsxCloud::Config.client.find_all_networks.items
+    if 0 < networks.size
+      # there already is a network, make sure there is a network marked as default
+      default = networks.find { |n| n.is_default }
+      return unless default.nil?
+
+      # find the network that contains the vm port group or pick the first one
+      default = networks.find { |n| n.portgroups.include? port_group }
+      default = networks.first if default.nil?
+
+      EsxCloud::Config.client.set_default default.id
+      return
+    end
+
+    spec = EsxCloud::NetworkCreateSpec.new(random_name("network-"), "Seeder Network", [port_group])
+    network = EsxCloud::Config.client.create_network(spec.to_hash)
+    EsxCloud::Config.client.set_default(network.id)
+  end
+end
+
+namespace :monitor do
+  desc 'Monitor host'
+  RSpec::Core::RakeTask.new(:host) do |task|
+    task.pattern = FileList['spec/api/host/host_monitor_spec.rb']
+    task.rspec_opts = "--tag monitor_host --format RspecJunitFormatter --out reports/rspec-monitor-host.xml --tag ~slow --profile"
+  end
+end
+
+namespace "cloudstore" do
+  desc "Seeds the cloudstore with entities required to mimic a deployment"
+  task :seed do
+    EsxCloud::Config.init
+
+    deployment = EsxCloud::Dcp::CloudStore::DeploymentFactory.ensure_exists
+    puts deployment
+  end
+end
+
+namespace "upgrade" do
+  namespace "test" do
+    desc "Runs tests checking the old_install setup"
+    RSpec::Core::RakeTask.new(:old_install) do |task|
+      task.pattern = FileList['spec/upgrade/verify_old_install_spec.rb']
+      task.rspec_opts = "--tag upgrade --format RspecJunitFormatter --out reports/rspec-upgrade-old-install.xml --tag ~slow"
+    end
+
+    desc "Runs tests checking the new install setup"
+    RSpec::Core::RakeTask.new(:new_install) do |task|
+      task.pattern = FileList['spec/upgrade/verify_new_install_spec.rb']
+      task.rspec_opts = "--tag upgrade --format RspecJunitFormatter --out reports/rspec-upgrade-new-install.xml --tag ~slow"
+    end
+
+    desc "Runs tests checking the migration preparation"
+    RSpec::Core::RakeTask.new(:during_prepare) do |task|
+      task.pattern = FileList['spec/upgrade/during_prepare_spec.rb']
+      task.rspec_opts = "--tag upgrade --format RspecJunitFormatter --out reports/rspec-during-upgrade-prepare.xml --tag ~slow"
+    end
+
+    desc "Runs tests checking the migration finalization"
+    RSpec::Core::RakeTask.new(:during_finalize) do |task|
+      task.pattern = FileList['spec/upgrade/during_finalize_spec.rb']
+      task.rspec_opts = "--tag upgrade --format RspecJunitFormatter --out reports/rspec-during-upgrade-finilize.xml --tag ~slow"
+    end
+
+    desc "Runs tests checking the migration finalization"
+    RSpec::Core::RakeTask.new(:after_finalize) do |task|
+      task.pattern = FileList['spec/upgrade/after_finalize_spec.rb']
+      task.rspec_opts = "--tag upgrade --format RspecJunitFormatter --out reports/rspec-after-upgrade-finilize.xml --tag ~slow"
+    end
+  end
+
+  desc "Prepare old plane."
+  task :prepare_old_plane, [:new_config_file, :task_number] do |t, args|
+    EsxCloud::Config.init
+    EsxCloud::Config.client = ApiClientHelper.management
+    EsxCloud::ManagementPlaneSeeder.populate
+    EsxCloud::Dcp::CloudStore::TaskFactory.create_random_tasks args[:number].to_i
+    host_specs = EsxCloud::HostsImporter.import_file  args[:new_config_file]
+    host_specs.each{ |h| EsxCloud::HostCleaner.api_clean h.address }
+  end
+end
+
+desc 'Generates code from Thrift files'
+namespace "install" do
+  task :thrift do |t|
+    `rm -rf thrift`
+    `mkdir -p thrift`
+    Dir["#{File.dirname(__FILE__)}/../../thrift//*.thrift"].each do |file|
+      puts `thrift --gen rb --recurse -out #{File.dirname(__FILE__)}/thrift #{file}`
+    end
+  end
+end
+
+desc 'Clean hosts'
+task :clean_hosts, [:dc_yml] do |t, args|
+  puts "VERBOSE: Starting task clean_hosts" if $VERBOSE
+  host_specs = EsxCloud::HostsImporter.import_file  args[:dc_yml]
+  host_specs.each do |host|
+    puts "VERBOSE: Starting cleaning vms #{host.address}" if $VERBOSE
+    puts EsxCloud::HostCleaner.remove_vms host.address, host.username, host.password
+    EsxCloud::HostCleaner.uninstall_vib host.address, host.username, host.password, "photon-controller-agent"
+    EsxCloud::HostCleaner.uninstall_vib host.address, host.username, host.password, "photon-controller-agent-ext"
+    EsxCloud::HostCleaner.uninstall_vib host.address, host.username, host.password, "envoy"
+  end
+  host_specs.each do |host|
+    puts "VERBOSE: Starting cleaning datastores #{host.address}" if $VERBOSE
+    EsxCloud::HostCleaner.clean_datastores host.address, host.username, host.password
+  end
+end
+
+desc 'Enable core dumps'
+task :enable_core_dumps, [:dc_yml] do |t, args|
+  host_specs = EsxCloud::HostsImporter.import_file  args[:dc_yml]
+  host_specs.each do |host|
+    EsxCloud::HostCleaner.enable_core_dumps host.address, host.username, host.password
+  end
+end
+
+desc 'Enable core dump'
+task :enable_core_dump do |t|
+  EsxCloud::HostCleaner.enable_core_dumps EsxCloud::TestHelpers.get_esx_ip, EsxCloud::TestHelpers.get_esx_username, EsxCloud::TestHelpers.get_esx_password
+end
+
+desc 'Reboot hosts'
+task :reboot_hosts, [:dc_yml] do |t, args|
+  host_specs = EsxCloud::HostsImporter.import_file  args[:dc_yml]
+  host_specs.each do |host|
+    EsxCloud::HostCleaner.reboot_host host.address, host.username, host.password
+  end
+  # should make sure the machines actually started rebooting
+  sleep 30
+  max_wait_time = (ENV["REBOOT_WAIT_TIME"] || 15 * 60).to_i
+  host_specs.each do |host|
+    EsxCloud::HostCleaner.wait_for_boot host.address, host.username, host.password, max_wait_time
+  end
+end
+
+desc 'Reboot host'
+task :reboot_host do |t|
+  EsxCloud::HostCleaner.reboot_host EsxCloud::TestHelpers.get_esx_ip, EsxCloud::TestHelpers.get_esx_username, EsxCloud::TestHelpers.get_esx_password
+  # should make sure the machine actually started rebooting
+  sleep 30
+  max_wait_time = (ENV["REBOOT_WAIT_TIME"] || 15 * 60).to_i
+  EsxCloud::HostCleaner.wait_for_boot EsxCloud::TestHelpers.get_esx_ip, EsxCloud::TestHelpers.get_esx_username, EsxCloud::TestHelpers.get_esx_password, max_wait_time
+end
+
+desc 'Power off management vms'
+task :power_off_management_vms, [:count] do |t, args|
+  EsxCloud::UptimeHelper.power_off_management_vms args[:count]
+end
+
+desc 'Power on management vms'
+task :power_on_management_vms do
+  EsxCloud::UptimeHelper.power_on_management_vms
+end
+
+desc 'Stop agent'
+task :stop_agent, [:dc_yml, :usage_tags] do |t, args|
+  EsxCloud::UptimeHelper.stop_agent(args[:dc_yml], args[:usage_tags])
+end
+
+desc 'Start agent'
+task :start_agent, [:dc_yml, :usage_tags] do |t, args|
+  EsxCloud::UptimeHelper.start_agent(args[:dc_yml], args[:usage_tags])
+end
+
+desc 'Run integration test to check deployment'
+RSpec::Core::RakeTask.new(:check_deployment) do |task|
+  task.pattern = FileList['spec/api/check_deployment/*_spec.rb']
+  task.rspec_opts = "--tag check_deployment --format RspecJunitFormatter --out reports/rspec-deployer.xml --tag ~slow"
+end
+
+
+desc 'Run integration test for deployer'
+RSpec::Core::RakeTask.new(:deployer) do |task|
+  task.pattern = FileList['spec/api/deployer/*_spec.rb']
+  task.rspec_opts = "--tag deployer --format RspecJunitFormatter --out reports/rspec-deployer.xml --tag ~slow"
+end
+
+desc 'Run integration test for zookeeper service'
+RSpec::Core::RakeTask.new(:zookeeper) do |task|
+  task.pattern = FileList['spec/zookeeper/**/*_spec.rb']
+  task.rspec_opts = "--tag zookeeper --format RspecJunitFormatter --out reports/rspec-zookeeper.xml --tag ~slow"
+end
+
+desc 'Run integration test for Cluster service'
+RSpec::Core::RakeTask.new(:cluster) do |task|
+  task.pattern = FileList['spec/api/cluster/*_spec.rb']
+  # The report being created by following line is not sane XML, so we are naming it such that Jenkins JUnit reporting will ignore it.
+  task.rspec_opts = "--tag cluster --format RspecJunitFormatter --out reports/rspec-cluster.Xxml --tag ~slow"
+end
+
+desc 'Run integration test for housekeeper service'
+RSpec::Core::RakeTask.new(:housekeeper) do |task|
+  task.pattern = FileList['spec/housekeeper/*_spec.rb']
+  task.rspec_opts = "--tag housekeeper --format RspecJunitFormatter --out reports/rspec-housekeeper.xml --tag ~slow"
+end
+
+desc 'Run integration test for availability zone'
+RSpec::Core::RakeTask.new(:availabilityzone) do |task|
+  task.pattern = FileList['spec/availabilityzone/availability_zone_spec.rb']
+  task.rspec_opts = "--tag availabilityzone --format RspecJunitFormatter --out reports/rspec-availabilityzone.xml --tag ~slow"
+end
+
+namespace "agent" do
+  desc "Agent stats integration tests"
+  RSpec::Core::RakeTask.new(:stats) do |task|
+    EsxCloud::Config.init
+    EsxCloud::Config.client = ApiClientHelper.management
+    task.pattern = FileList['spec/agent/stats_spec.rb']
+    task.rspec_opts = "--tag stats --format RspecJunitFormatter --out reports/rspec-stats.xml --tag ~slow"
+  end
+end
+
+namespace "virtual_network" do
+  desc "Virtual network integration tests"
+  RSpec::Core::RakeTask.new(:virtual_network) do |task|
+    task.pattern = FileList['spec/api/virtual_network/*_spec.rb']
+    task.rspec_opts = "--tag virtual_network --out reports/rspec-virtual-network.xml --tag ~slow"
+  end
+end
+
+desc 'Download esx logs'
+task :download_esx_logs do
+  EsxCloud::LogBackUpHelpers.download_esx_logs
+end
+
+desc 'Verify no usernames or passwords in service logs'
+task :verify_logs do
+  EsxCloud::LogBackUpHelpers.verify_logs
+end
+
+desc 'Clean vms on real host'
+task :clean_vms_on_real_host do
+  esx_ip = EsxCloud::TestHelpers.get_esx_ip
+  return if esx_ip.nil?
+
+  dirty_vms = EsxCloud::HostCleaner.clean_vms_on_real_host(esx_ip,
+                                                           EsxCloud::TestHelpers.get_esx_username,
+                                                           EsxCloud::TestHelpers.get_esx_password)
+  puts "VMs left on host #{esx_ip}: #{dirty_vms}" if dirty_vms
+end
+
+task default: :esxcloud

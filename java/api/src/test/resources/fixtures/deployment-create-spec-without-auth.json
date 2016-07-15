@@ -1,0 +1,22 @@
+{
+	"imageDatastores": [
+		"image-datastore"
+	],
+	"syslogEndpoint": "0.0.0.1",
+	"ntpEndpoint": "0.0.0.2",
+	"stats": {
+		"enabled": false
+	},
+	"useImageDatastoreForVms": false,
+	"auth": {
+		"enabled": false
+	},
+	"networkConfiguration": {
+		"virtualNetworkEnabled": true,
+		"networkManagerAddress": "1.2.3.4",
+		"networkManagerUsername": "networkManagerUsername",
+		"networkManagerPassword": "networkManagerPassword",
+		"networkTopRouterId": "networkTopRouterId"
+	},
+	"loadBalancerEnabled": true
+}

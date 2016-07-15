@@ -1,0 +1,39 @@
+{
+	"id": "id",
+	"kind": "deployment",
+	"syslogEndpoint": "0.0.0.1",
+	"stats": {
+		"enabled": true,
+		"storeEndpoint": "10.146.64.111",
+		"storePort": 2004,
+		"storeType": "GRAPHITE"
+	},
+	"ntpEndpoint": "0.0.0.2",
+	"imageDatastores": [
+		"image-datastore"
+	],
+	"useImageDatastoreForVms": false,
+	"state": "CREATING",
+	"auth": {
+		"enabled": true,
+		"endpoint": "10.146.64.236",
+		"port": 443,
+		"tenant": "t",
+		"username": "u",
+		"password": "p",
+		"securityGroups": [
+			"adminGroup1",
+			"adminGroup2"
+		]
+	},
+	"networkConfiguration": {
+		"virtualNetworkEnabled": true,
+		"networkManagerAddress": "1.2.3.4",
+		"networkManagerUsername": "networkManagerUsername",
+		"networkManagerPassword": "networkManagerPassword",
+		"networkZoneId": "networkZoneId",
+		"networkTopRouterId": "networkTopRouterId"
+	},
+	"loadBalancerEnabled": true,
+	"loadBalancerAddress": "0.0.0.4"
+}

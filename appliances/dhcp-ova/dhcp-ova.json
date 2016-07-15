@@ -1,0 +1,59 @@
+{
+  "builders": [
+    {
+      "type": "virtualbox-ovf",
+      "format": "ova",
+      "source_path": "{{ user `photon_ova_url` }}",
+      "vm_name": "dhcp-ova-virtualbox",
+      "ssh_username": "root",
+      "ssh_password": "changeme",
+      "guest_additions_mode": "disable",
+      "shutdown_command": "shutdown -P now",
+      "headless": true,
+      "output_directory": "build/"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": "tdnf makecache"
+    },
+    {
+      "type": "shell",
+      "script": "../scripts/install-java.sh"
+    },
+    {
+      "type": "shell",
+      "inline": "mkdir -p /usr/local/sbin && wget -nv {{ user `dnsmasq_url` }} -O /usr/local/sbin/dnsmasq && chmod +x /usr/local/sbin/dnsmasq"
+    },
+    {
+      "type": "shell",
+      "inline": "wget -nv {{ user `dnsmasq_dhcp_release_url` }} -O /usr/local/bin/dhcp_release && chmod +x /usr/local/bin/dhcp_release"
+    },
+    {
+      "type": "shell",
+      "inline": "rm /etc/systemd/network/*"
+    },
+    {
+      "type": "shell",
+      "inline": "systemctl restart systemd-networkd"
+    },
+    {
+      "type": "shell",
+      "inline": "mkdir -p /usr/local/dhcp-agent"
+    },
+    {
+      "type": "file",
+      "source": "{{ user `dhcpAgentTarPath` }}",
+      "destination": "/usr/local/dhcp-agent/dhcp-agent.tar"
+    },
+    {
+      "type": "shell",
+      "inline": "tar xf /usr/local/dhcp-agent/dhcp-agent.tar --strip-components=1 -C /usr/local/dhcp-agent && rm /usr/local/dhcp-agent/dhcp-agent.tar"
+    },
+    {
+      "type": "shell",
+      "script": "../scripts/cleanup.sh"
+    }
+  ]
+}
