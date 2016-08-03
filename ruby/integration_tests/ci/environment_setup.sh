@@ -1,5 +1,5 @@
 # Set the following if real agent is to be used
-export REAL_AGENT=1
+export REAL_AGENT=0
 
 # Set the following environment variables
 
@@ -9,10 +9,10 @@ export API_ADDRESS=
 export API_FE_PORT=443
 # The IP of the host where the integration tests are going to run on.
 # For example, creating vms on it.
-export ESX_IP=
+export ESX_IP=10.150.36.209
 # The datastore name that the integration tests are going to run on.
 # For example, uploading images to it.
-export ESX_DATASTORE=
+export ESX_DATASTORE=datastore9
 # The ID for the datastore
 export ESX_DATASTORE_ID=
 # The portgroup for management VMs
@@ -42,6 +42,8 @@ export ZOOKEEPER_PORT=2181
 # Set the following environment variables if a vagrant box needs
 # to be set up to run the services.
 
+export PRIVATE_NETWORK_IP=172.31.253.66
+
 # Vagrant box IP
 export PUBLIC_NETWORK_IP=
 # Vagrant box network mask
@@ -49,7 +51,8 @@ export PUBLIC_NETWORK_NETMASK=
 # Vagrant box network gateway
 export PUBLIC_NETWORK_GATEWAY=
 # Network bridge between vagrant box and host
-export BRIDGE_NETWORK=
+ export BRIDGE_NETWORK=
+# export BRIDGE_NETWORK=vboxnet0
 
 # Set the following environment variables if authentication and
 # authorization are enabled at API-FE service.

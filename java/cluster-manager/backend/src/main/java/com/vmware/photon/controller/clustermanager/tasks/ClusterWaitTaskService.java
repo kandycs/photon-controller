@@ -147,7 +147,6 @@ public class ClusterWaitTaskService extends StatefulService {
       case MesosSlave:
       case SwarmSlave:
       case GridengineSlave:
-      case GridengineMaster:
         Preconditions.checkNotNull(currentState.nodeAddresses, "nodeAddresses should not be null");
         Preconditions.checkArgument(currentState.nodeAddresses.size() > 0, "nodeAddresses should not be empty");
 
@@ -163,6 +162,8 @@ public class ClusterWaitTaskService extends StatefulService {
       case MesosMarathon:
       case SwarmEtcd:
       case SwarmMaster:
+      case GridengineMaster:
+      case GridengineNFS:
         StatusChecker statusChecker = getStatusCheckHelper()
             .createStatusChecker(this, currentState.nodeType);
         statusChecker.checkNodeStatus(currentState.serverAddress, callback);

@@ -42,10 +42,16 @@ import com.vmware.xenon.common.UriUtils;
 import com.vmware.xenon.common.Utils;
 
 import com.google.common.util.concurrent.FutureCallback;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 import javax.annotation.Nullable;
+
+
+
+
 
 /**
  * This class implements a Xenon service representing a task to create a
@@ -54,6 +60,7 @@ import javax.annotation.Nullable;
 public class GridengineClusterCreateTaskService extends StatefulService {
 
   private static final int MINIMUM_INITIAL_SLAVE_COUNT = 1;
+    private static final Logger logger = LoggerFactory.getLogger(GridengineClusterCreateTaskService.class);
 
   public GridengineClusterCreateTaskService() {
     super(GridengineClusterCreateTask.class);
@@ -247,6 +254,8 @@ public class GridengineClusterCreateTaskService extends StatefulService {
 
               ClusterService.State cluster = operation.getBody(ClusterService.State.class);
 
+              logger.info("Chaoc: Number of Slave nodes for Grid Engine Cluster: {}", cluster.slaveCount);
+
               NodeRolloutInput rolloutInput = new NodeRolloutInput();
               rolloutInput.clusterId = currentState.clusterId;
               rolloutInput.projectId = cluster.projectId;
@@ -254,7 +263,8 @@ public class GridengineClusterCreateTaskService extends StatefulService {
               rolloutInput.diskFlavorName = cluster.diskFlavorName;
               rolloutInput.vmFlavorName = cluster.otherVmFlavorName;
               rolloutInput.vmNetworkId = cluster.vmNetworkId;
-              rolloutInput.nodeCount = MINIMUM_INITIAL_SLAVE_COUNT;
+              //rolloutInput.nodeCount = MINIMUM_INITIAL_SLAVE_COUNT;
+              rolloutInput.nodeCount = cluster.slaveCount;
               rolloutInput.nodeType = NodeType.GridengineSlave;
               rolloutInput.serverAddress = cluster.extendedProperties
                   .get(ClusterManagerConstants.EXTENDED_PROPERTY_MASTER_IP);
@@ -266,7 +276,14 @@ public class GridengineClusterCreateTaskService extends StatefulService {
               rollout.run(this, rolloutInput, new FutureCallback<NodeRolloutResult>() {
                 @Override
                 public void onSuccess(@Nullable NodeRolloutResult result) {
-                  setupRemainingSlaves(currentState, cluster);
+                  //setupRemainingSlaves(currentState, cluster);
+                    GridengineClusterCreateTask patchState = buildPatch(TaskState.TaskStage.FINISHED, null);
+
+                    ClusterService.State clusterPatch = new ClusterService.State();
+                    clusterPatch.clusterState = ClusterState.READY;
+
+                    updateStates(currentState, patchState, clusterPatch);
+                    startMaintenance(currentState);
                 }
 
                 @Override
@@ -277,6 +294,7 @@ public class GridengineClusterCreateTaskService extends StatefulService {
             }));
   }
 
+  /*
   private void setupRemainingSlaves(final GridengineClusterCreateTask currentState,
       final ClusterService.State cluster) {
     // Maintenance task should be singleton for any cluster.
@@ -291,6 +309,8 @@ public class GridengineClusterCreateTaskService extends StatefulService {
             failTaskAndPatchDocument(currentState, NodeType.GridengineSlave, throwable);
             return;
           }
+
+          logger.info("Chaoc: Setup the remaining of Slave Nodes. Number of Slave nodes: {}", cluster.slaveCount);
           if (cluster.slaveCount == MINIMUM_INITIAL_SLAVE_COUNT) {
             // We short circuit here and set the clusterState as READY, since
             // the desired size has
@@ -313,6 +333,7 @@ public class GridengineClusterCreateTaskService extends StatefulService {
         });
     sendRequest(postOperation);
   }
+  */
 
   private void startMaintenance(final GridengineClusterCreateTask currentState) {
     ClusterMaintenanceTaskService.State patchState = new ClusterMaintenanceTaskService.State();

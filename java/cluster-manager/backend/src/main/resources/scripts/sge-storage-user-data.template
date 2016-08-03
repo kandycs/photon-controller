@@ -5,7 +5,7 @@ bootcmd:
 
 write_files:
   - content: |
-        eno_name=$(ip addr | grep eno | sed 's/.*\(eno.*\):.*/\1/' | head -n 1)
+        eno_name=$(ip addr | grep eth | sed 's/.*\(eth.*\):.*/\1/' | head -n 1)
         cat > "/etc/systemd/network/10-dhcp-${eno_name}.network" << EOF
         [Match]
         Name=${eno_name}

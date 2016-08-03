@@ -112,6 +112,7 @@ public class ClusterManagerFactory {
 
   /**
    * Creates an instance of {@link GridengineClient}.
+   * TODO(chaoc): Figure out the way to check GridEngine Status instead of using httpAsyncClient
    */
   public GridengineClient createGridengineClient() {
     return new GridengineClient(this.httpAsyncClient);

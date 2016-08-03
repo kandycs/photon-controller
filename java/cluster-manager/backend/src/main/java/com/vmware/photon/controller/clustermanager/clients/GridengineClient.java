@@ -37,9 +37,11 @@ import java.util.Set;
 */
 
 /**
- * copied from KubernetesClient.java, which was used to represent a simple REST
- * client to call into Kubernetes Rest APIs to query the status of the cluster.
- * However, grid engine has now such interface. what can we do here
+ * Here is to implement the client code to check the status of GridEngine Clusters,
+ * including check status of NFS server node, Grid Engine Master Node and Grid Engine Slave Nodes
+ * As currently all of these services has no RESTApi, therefore httpClient may not usable here.
+ * TODO(chaoc): Figure out a way to talked NFS server, GridEngine Master node and GridEngine
+ *              Slave nodes to check whether they have been startup correctly.
  */
 public class GridengineClient {
   public GridengineClient(CloseableHttpAsyncClient httpClient) {

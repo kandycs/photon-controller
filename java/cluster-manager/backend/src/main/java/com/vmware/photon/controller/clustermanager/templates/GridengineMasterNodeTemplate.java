@@ -34,7 +34,7 @@ public class GridengineMasterNodeTemplate implements NodeTemplate {
   public static final String GATEWAY_PROPERTY = "gateway";
   public static final String MASTER_IP_PROPERTY = "masterIp";
   public static final String NETMASK_PROPERTY = "netmask";
-  public static final String VM_NAME_PREFIX = "sge_master";
+  public static final String VM_NAME_PREFIX = "sgemaster";
 
   public String getVmName(Map<String, String> properties) {
     Preconditions.checkNotNull(properties, "properties cannot be null");

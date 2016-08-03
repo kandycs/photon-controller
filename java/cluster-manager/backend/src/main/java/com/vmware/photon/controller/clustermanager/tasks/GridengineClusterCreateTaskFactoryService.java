@@ -31,6 +31,6 @@ public class GridengineClusterCreateTaskFactoryService extends FactoryService {
 
   @Override
   public Service createServiceInstance() throws Throwable {
-    return new KubernetesClusterCreateTaskService();
+    return new GridengineClusterCreateTaskService();
   }
 }

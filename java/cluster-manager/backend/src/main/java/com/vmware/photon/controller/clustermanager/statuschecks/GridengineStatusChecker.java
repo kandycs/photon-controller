@@ -14,14 +14,14 @@
 package com.vmware.photon.controller.clustermanager.statuschecks;
 
 import com.vmware.photon.controller.clustermanager.clients.GridengineClient;
-import com.vmware.photon.controller.clustermanager.servicedocuments.ClusterManagerConstants;
+//import com.vmware.photon.controller.clustermanager.servicedocuments.ClusterManagerConstants;
 
 import com.google.common.util.concurrent.FutureCallback;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
+//import javax.annotation.Nullable;
 
 import java.util.List;
 import java.util.Set;
@@ -42,45 +42,21 @@ public class GridengineStatusChecker implements StatusChecker, SlavesStatusCheck
 
   @Override
   public void checkNodeStatus(final String nodeAddress, final FutureCallback<Boolean> callback) {
-    logger.info("Checking Etcd: {}", nodeAddress);
-
-    try {
-      String connectionString = createConnectionString(nodeAddress);
-      gridengineClient.checkStatus(connectionString, new FutureCallback<Boolean>() {
-        @Override
-        public void onSuccess(@Nullable Boolean isReady) {
-          try {
-            callback.onSuccess(isReady);
-          } catch (Throwable t) {
-            logger.warn("Etcd call failed: ", t);
-            callback.onFailure(t);
-          }
-        }
-
-        @Override
-        public void onFailure(Throwable t) {
-          logger.warn("Etcd call failed: ", t);
-          callback.onSuccess(false);
-        }
-      });
-    } catch (Exception e) {
-      logger.warn("Etcd call failed: ", e);
-      callback.onSuccess(false);
-    }
+    logger.info("Checking Status of GridEngine Master Or NFS Node: {}", nodeAddress);
+    // TODO(chaoc): how to post an SUCCESS info about GridEngine NFS node and Master Node status here
+    callback.onSuccess(true);
   }
 
   @Override
   public void checkSlavesStatus(final String masterAddress, final List<String> slaveAddresses,
       final FutureCallback<Boolean> callback) {
-    // not implemented
+    logger.info("Checking Status of GridEngine Slave Node: {}", slaveAddresses);
+    // TODO(chaoc): how to post an SUCCESS info about checking Grid Engine Slave Nodes Status here
+    callback.onSuccess(true);
   }
 
-  @Override
   public void getSlavesStatus(String serverAddress, final FutureCallback<Set<String>> callback) {
     // not implemented
   }
 
-  private static String createConnectionString(String serverAddress) {
-    return "http://" + serverAddress + ":" + ClusterManagerConstants.Swarm.ETCD_PORT;
-  }
 }

@@ -30,7 +30,7 @@ public class GridengineSlaveNodeTemplate implements NodeTemplate {
   public static final String SLAVE_USER_DATA_TEMPLATE = "sge-slave-user-data.template";
   public static final String NFS_IP_PROPERTY = "nfsIp";
   public static final String MASTER_IP_PROPERTY = "masterIp";
-  public static final String VM_NAME_PREFIX = "slave";
+  public static final String VM_NAME_PREFIX = "sgeslave";
 
   public String getVmName(Map<String, String> properties) {
     Preconditions.checkNotNull(properties, "properties cannot be null");

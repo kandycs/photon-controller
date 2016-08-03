@@ -61,6 +61,11 @@ public class StatusCheckHelper {
     case SwarmSlave:
       return new SwarmStatusChecker(HostUtils.getSwarmClient(service));
 
+    /* Checking Grid Engine Clusters' status.
+       Not fully implemented yet, as Grid Engine Cluster has no RESTApi available
+       TODO(chaoc): figure out other ways to check the status of NFS server,
+                    GridEngine Master service and GridEngine Slave Service
+     */
     case GridengineNFS:
     case GridengineMaster:
     case GridengineSlave:

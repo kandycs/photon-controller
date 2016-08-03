@@ -51,10 +51,11 @@ public class GridengineClusterCreateStepCmd extends StepCommand {
     checkNotNull(projectId, "project-id is not defined in TransientResource");
     checkNotNull(spec, "create-spec is not defined in TransientResource");
 
-    logger.info("GridengineClusterCreateStepCmd started, projectId={}, clusterName={}", projectId, spec.getName());
+    logger.info("\nGridengineClusterCreateStepCmd started, projectId={}, clusterName={}\n", projectId, spec.getName());
 
     GridengineClusterCreateTask serviceDocument = clusterBackend.getClusterManagerClient()
         .createGridengineCluster(projectId, spec);
+
     // pass remoteTaskId to XenonTaskStatusStepCmd
     for (StepEntity nextStep : taskCommand.getTask().getSteps()) {
       nextStep.createOrUpdateTransientResource(XenonTaskStatusStepCmd.REMOTE_TASK_LINK_RESOURCE_KEY,

@@ -1,13 +1,15 @@
 #!/bin/bash -ex
+#export PRIVATE_NETWORK_IP=172.31.253.66
 
 export WORKSPACE=${WORKSPACE:=$(git rev-parse --show-toplevel)}
 export DEVBOX=${DEVBOX:="$WORKSPACE/devbox-photon"}
-echo $DEVBOX
 export TESTS=${TESTS:="$WORKSPACE/ruby/integration_tests"}
 if [ ! -d "$DEVBOX" ]; then fail "$DEVBOX is not accessible"; fi
 
 # Only continue if all these environment variables are defined
-checklist=(PUBLIC_NETWORK_IP PUBLIC_NETWORK_NETMASK PUBLIC_NETWORK_GATEWAY BRIDGE_NETWORK)
+# checklist=(PUBLIC_NETWORK_IP PUBLIC_NETWORK_NETMASK PUBLIC_NETWORK_GATEWAY BRIDGE_NETWORK)
+#checklist=(PUBLIC_NETWORK_IP PUBLIC_NETWORK_NETMASK PUBLIC_NETWORK_GATEWAY)
+checklist=()
 for var in "${checklist[@]}"; do
   if [ -z "$(printenv "$var")" ]; then
     echo Cannot start devbox. "$var" is not defined.
@@ -35,7 +37,7 @@ fi
 
 # Start fresh devbox and build services
 rm -rf "$DEVBOX/log/"
-./gradlew :devbox:renewPhoton
+./gradlew :devbox:renewPhoton --info
 
 # Seed cloudstore with deployment
 (cd "$TESTS" && bundle exec rake cloudstore:seed)
