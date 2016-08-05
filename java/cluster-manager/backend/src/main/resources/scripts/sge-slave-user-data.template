@@ -5,6 +5,15 @@ bootcmd:
 
 write_files:
   - content: |
+        PWD=`pwd`
+        export SGE_ROOT=/opt/sge
+        export PATH=/opt/sge/bin:/opt/sge/bin/lx-amd64/:$PATH
+        cd /opt/sge
+        /opt/sge/inst_sge -x -auto /opt/sge/inst_template.conf
+    owner: root:root
+    permissions: 0644
+    path: /tmp/install_execd.sh
+  - content: |
         eno_name=$(ip addr | grep eth | sed 's/.*\(eth.*\):.*/\1/' | head -n 1)
         cat > "/etc/systemd/network/10-dhcp-${eno_name}.network" << EOF
         [Match]
@@ -20,11 +29,12 @@ write_files:
     path: /tmp/init-network.sh
   - content: |
         masterIp=$MASTER_ADDRESS
-        sgeImage=kandycn/ubuntu-16.04:sge
+        sgeImage=kandycn/ubuntu-16.04-sge
+        container_id=
 
         while :
         do
-          eno_name=$(ip addr | grep eno | sed 's/.*\(eno.*\):.*/\1/' | head -n 1)
+          eno_name=$(ip addr | grep eth | sed 's/.*\(eth.*\):.*/\1/' | head -n 1)
           ipAddress=`ifconfig ${eno_name} | sed -n '/addr:/{;s/.*addr://;s/ .*//;p;}'`
           echo ${ipAddress}
           if [ -n "${ipAddress}" ]; then
@@ -34,24 +44,54 @@ write_files:
           sleep 1
         done
 
-        sleep 5
-
         echo "Mount NFS share"
-        tdnf -y install nfs-utils
-        systemctl start nfs-client 
-        mount $NFS_IP:/nfsshare /mnt/nfs
+        tdnf -y install nfs-utils inotify-tools
+        if [ -e /mnt/sgedefault ]; then
+            umount /mnt/sgedefault
+            umount /mnt/esxcloud
+            systemctl stop nfs-client
+            rm -rf /mnt/sgedefault /mnt/esxcloud
+        fi
 
-        sleep 2 
+        systemctl restart rpcbind.service
+        systemctl start nfs-client
+        mkdir -p /mnt/sgedefault
+        mkdir -p /mnt/esxcloud
+        mount $NFS_IP:/sgedefault /mnt/sgedefault
+        mount $NFS_IP:/esxcloud   /mnt/esxcloud
+
+        sleep 1 
 
         echo "${ipAddress}         $LOCAL_HOSTNAME" >> /etc/hosts
-        
+        echo "${ipAddress}         $LOCAL_HOSTNAME" >> /mnt/esxcloud/hosts
+
+        # check whether qmaster has start up
+        while [ ! -e /mnt/esxcloud/qmaster ]; do
+            sleep 1
+        done
+
+        # put qmaster hostname and IP to local host file
+        head -n 1 /mnt/esxcloud/qmaster >> /etc/hosts
+
+        touch /etc/esxcloud/slave
+        # notify qmaster about the arriving of a new node
+        ssh -p 2222 ${masterIp} 'echo 1 >> /etc/esxcloud/qmaster'
+
+        # waiting notification from qmaster
+        inotifywait -q -e modify /etc/esxcloud/slave
+
         echo "starting qmaster container"
-        docker run -d --net=host -h sge-slave$SGE_ID -v /mnt/nfs:/opt/sge -p $SSH_PORT:$SSH_PORT \
-                            -p QMASTER_PORT:QMASTER_PORT -p $EXECD_PORT:$EXECD_PORT ${sgeImage}  
+        container_id=`docker run -d --net=host -h sge-slave$SGE_ID -v /mnt/sgedefault:/opt/sge/ \
+                            -v /etc/esxcloud:/tmp -p $SSH_PORT:$SSH_PORT -p $QMASTER_PORT:$QMASTER_PORT \
+                            -p $EXECD_PORT:$EXECD_PORT ${sgeImage}`
+        # add master ip and hosts to /etc/hosts
+        docker exec $container_id echo `head -n 1` >> /etc/hosts
+        # start up sge_execd services
+        docker exec $container_id sh /tmp/install_execd.sh        
         echo "done"
     owner: root:root
     permissions: 0644
-    path: /etc/esxcloud/setup-sge-slave.sh
+    path: /tmp/setup-sge-slave.sh
   - content: |
         retry_max="60"
         retry="0"
@@ -79,4 +119,4 @@ runcmd:
   - systemctl start docker
   - sh /tmp/check-docker.sh
   - sh /tmp/init-network.sh
-  - sh /etc/esxcloud/setup-sge-slave.sh
+  - sh /tmp/setup-sge-slave.sh > /var/log/sge-slave.log

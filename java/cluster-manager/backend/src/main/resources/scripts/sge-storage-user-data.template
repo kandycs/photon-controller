@@ -39,18 +39,25 @@ write_files:
 
   - content: |
         echo "start NFS server"
-        systemctl start  nfs-server
-        mkdir /nfsshare
-        chown nobody:nogroup /nfsshare
-        chmod 777 /nfsshare
-        echo "/nfsshare        *(rw,async,fsid=0,no_root_squash,no_subtree_check)" >> /etc/exports
+        tdnf -y install nfs-utils inotify-tools
+        if [ -e /etc/exports ]; then
+            systemctl stop nfs-server
+            rm /etc/exports
+            rm -rf /sgedefault /esxcloud
+        fi
+        mkdir /sgedefault
+        mkdir /esxcloud
+        chmod 777 /sgedefault
+        chmod 777 /esxcloud
+        echo "/sgedefault        *(rw,async,fsid=0,no_root_squash,no_subtree_check)" >> /etc/exports
+        echo "/esxcloud          *(rw,async,no_root_squash,no_subtree_check)" >> /etc/exports
         systemctl restart nfs-server
         exportfs -a
         echo "done"
     owner: root:root
     permissions: 0644
-    path: /tmp/start-nfs.sh
+    path: /tmp/setup-nfs.sh
 
 runcmd:
   - sh /tmp/init-network.sh
-  - sh /tmp/start-nfs.sh > /var/log/sge-storage.log
+  - sh /tmp/setup-nfs.sh > /var/log/sge-storage.log

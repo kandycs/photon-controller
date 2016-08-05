@@ -5,7 +5,7 @@ bootcmd:
 
 write_files:
   - content: |
-        eno_name=$(ip addr | grep eno | sed 's/.*\(eno.*\):.*/\1/' | head -n 1)
+        eno_name=$(ip addr | grep eth | sed 's/.*\(eth.*\):.*/\1/' | head -n 1)
         cat > "/etc/systemd/network/10-dhcp-${eno_name}.network" << EOF
         [Match]
         Name=${eno_name}
@@ -37,26 +37,95 @@ write_files:
     permissions: 0644
     path: /tmp/init-network.sh
   - content: |
+        PWD=`pwd`
+        export SGE_ROOT=/opt/sge
+        export PATH=/opt/sge/bin:/opt/sge/bin/lx-amd64:$PATH
+        echo $@ >> /etc/hosts
+        cd /opt/sge
+        qconf -ah $2
+        cd $PWD
+    owner: root:root
+    permissions: 0644
+    path: /etc/esxcloud/add_execd.sh
+  - content: |
+        PWD=`pwd`
+        export SGE_ROOT=/opt/sge
+        export PATH=/opt/sge/bin:/opt/sge/bin/lx-amd64:$PATH
+        cd /opt/sge
+        /opt/sge/inst_sge -m -s -x -auto /opt/sge/inst_template.conf
+        cd $PWD
+    owner: root:root
+    permissions: 0644
+    path: /etc/esxcloud/install_qmaster.sh
+  - content: |
         eno_name=$(ip addr | grep eth | sed 's/.*\(eth.*\):.*/\1/' | head -n 1)
         ipAddress=`ifconfig ${eno_name} | sed -n '/addr:/{;s/.*addr://;s/ .*//;p;}'`
-        sgeImage = kandycn/ubuntu-16.04:sge
+        sgeImage=kandycn/ubuntu-16.04-sge
+        container_id=
 
-        echo "mounting NFS share" 
-        tdnf -y install nfs-utils
-        systemctl start nfs-client 
-        mount $NFS_IP:/nfsshare /mnt/nfs
-        
+        # function definition
+        function add_execd() {
+            if [ $# -lt 2 ]; then
+                exit
+            fi
+            echo $@ >> /etc/hosts
+            docker exec $container_id sh /tmp/add_execd.sh $@
+            # notify slave node it has been set as administrator
+            ssh -p 2222 $1 "echo '1' >> /etc/esxcloud/slave"
+        }
+
+        function monitor(){
+            if [ $# -eq 0 ]; then
+                echo "specify the file to be monitored"
+                exit
+            fi
+
+            while inotifywait -q -e modify $1; do
+                node=`tail -n 1 /mnt/esxcloud/hosts`
+                add_execd ${node}
+            done &
+        }
+
+        # mount NFS share
+        echo "mounting NFS share"
+
+        tdnf -y install nfs-utils inotify-tools
+        if [ -d /mnt/sgedefault ]; then
+            umount /mnt/sgedefault
+            umount /mnt/esxcloud
+            systemctl stop nfs-client
+            rm -rf /mnt/sgedefault /mnt/esxcloud
+        fi
+        mkdir /mnt/sgedefault
+        mkdir /mnt/esxcloud
+
+        systemctl restart rpcbind.service
+        systemctl start nfs-client
+        mount $NFS_IP:/sgedefault /mnt/sgedefault
+        mount $NFS_IP:/esxcloud   /mnt/esxcloud
+
         sleep 1
 
         echo "starting qmaster container"
-        docker run -d --net=host -h sge-master -v /mnt/nfs:/opt/sge -p $SSH_PORT:$SSH_PORT \
-                            -p $QMASTER_PORT:$QMASTER_PORT -p $EXECD_PORT:$EXECD_PORT ${sgeImage}
-        
-        echo "{$ipAddress}         $LOCAL_HOSTNAME" >> /etc/hosts
+        echo "${ipAddress}         $LOCAL_HOSTNAME" >> /etc/hosts
+        container_id=`docker run -d --net=host -h sge-master -v /mnt/sgedefault:/opt/sge/ \
+                        -v /etc/esxcloud:/tmp -p $SSH_PORT:$SSH_PORT -p $QMASTER_PORT:$QMASTER_PORT \
+                        -p $EXECD_PORT:$EXECD_PORT ${sgeImage}`
+
+        # start sge_qmaster service in container
+        docker exec ${container_id} sh /tmp/install_sge.sh
+        docker exec ${container_id} sh /tmp/install_qmaster.sh
+
+        # this is to tell slave nodes that qmaster service is up
+        echo "${ipAddress}         $LOCAL_HOSTNAME" >> /mnt/esxcloud/qmaster
+
         echo "done"
+        touch /etc/esxcloud/qmaster
+        monitor /etc/esxcloud/qmaster
+
     owner: root:root
     permissions: 0644
-    path: /etc/esxcloud/setup-sge-master.sh
+    path: /tmp/setup-sge-master.sh
   - content: |
         retry_max="60"
         retry="0"
@@ -84,4 +153,4 @@ runcmd:
   - systemctl start docker
   - sh /tmp/check-docker.sh
   - sh /tmp/init-network.sh
-  - sh /etc/esxcloud/setup-sge-master.sh
+  - sh /tmp/setup-sge-master.sh> /var/log/sge-master.log
